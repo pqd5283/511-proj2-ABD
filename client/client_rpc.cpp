@@ -132,7 +132,7 @@ private:
 // will be able to call these in the c code to interact with the grpc stuff, need to be able to read and write 
 extern "C" {
 
-int rpc_send_read(const char *ip, int request, int *out_key, char *out_value)
+int rpc_send_read(const char *ip, int request, int *out_key, char *out_value, size_t out_value_size)
 {
     if (!ip) {
         return -1;
@@ -140,7 +140,22 @@ int rpc_send_read(const char *ip, int request, int *out_key, char *out_value)
     std::string server_address = ip;
     ClientReadClient client(
         grpc::CreateChannel(server_address, grpc::InsecureChannelCredentials()));
-
+    // set dummy key and value to be filled by the client call 
+    int key = 0;
+    std::string value;
+    // call the client to send the read request to the server
+    if (!client.SendRead(request, key, value)) {
+        return -1;
+    }
+    if (out_key) {
+        *out_key = key;
+    }
+    // copy the returned value into the output buffer
+    if (out_value && out_value_size > 0) {
+        std::strncpy(out_value, value.c_str(), out_value_size - 1);
+        out_value[out_value_size - 1] = '\0'; 
+    }
+    return 0; 
 }
 
 
@@ -153,11 +168,14 @@ int rpc_send_read_writeback(const char *ip, int key, const char *value)
     std::string server_address = ip;
     ClientReadWritebackClient client(
         grpc::CreateChannel(server_address, grpc::InsecureChannelCredentials()));
-
+    if (!client.SendReadWriteback(key, std::string(value))) {
+        return -1;
+    }
+    return 0;
 
 }
 
-int rpc_send_write(const char *ip, int request, int *out_key, char *out_value)
+int rpc_send_write(const char *ip, int request, int *out_key, char *out_value, size_t out_value_size)
 {
     if (!ip) {
         return -1;
@@ -166,7 +184,20 @@ int rpc_send_write(const char *ip, int request, int *out_key, char *out_value)
     std::string server_address = ip;
     ClientWriteClient client(
         grpc::CreateChannel(server_address, grpc::InsecureChannelCredentials()));
-
+    // exact same setup as the read function, just calling the write client instead (need to do this to get the last highest timestamp, we dont really need the value but grabbing it just incase)
+    int key = 0;
+    std::string value;
+    if (!client.SendWrite(request, key, value)) {
+        return -1;
+    }
+    if (out_key) {
+        *out_key = key;
+    }
+    if (out_value && out_value_size > 0) {
+        std::strncpy(out_value, value.c_str(), out_value_size - 1);
+        out_value[out_value_size - 1] = '\0'; 
+    }
+    return 0; 
 }
 
 int rpc_send_writeback(const char *ip, int key, const char *value, const char *client_id)
@@ -178,7 +209,11 @@ int rpc_send_writeback(const char *ip, int key, const char *value, const char *c
     std::string server_address = ip;
     ClientWritebackClient client(
         grpc::CreateChannel(server_address, grpc::InsecureChannelCredentials()));
+    if (!client.SendWriteback(key, std::string(value), std::string(client_id))) {
+        return -1;
+    }
 
+    return 0;
 }
 
 } 
