@@ -1,0 +1,83 @@
+syntax="proto3";
+
+
+// a lot of this structure is ripped from the last project
+// i think im going to have the key value pair be key = timestamp (as this will have to be unique) and the value being well the value
+
+package abd;
+
+// just need to make the request known dont really need to send anything out
+message read_request {
+    int64 request = 1;
+}
+
+// on reply, get the key (timestamp) and the value 
+message read_reply {
+    int64 key = 1;
+    string value = 2;
+}
+
+// need to write back the highest timestamp (key) to all the servers 
+message read_writeback{
+    int64 key = 1;
+    string value = 2;
+
+}
+// acknowledge 
+message read_writeback_reply{
+    bool success = 1;
+}
+
+
+
+// need to send out a request to write again just make the request known
+message write_request {
+    int64 request = 1;
+}
+
+message write_reply {
+    int64 key = 1; 
+    string value = 2;
+}
+
+// not sure what the client id is quite used for but its mentioned in the notes 
+message writeback_request{
+    int64 key = 1;
+    string value = 2;
+    string client_id = 3; 
+}
+
+message writeback_reply{
+    bool success = 1;
+}
+
+// blocking protocol
+message lock_request {
+    string key = 1;
+}
+
+message lock_reply {
+    bool granted = 1;
+}
+
+
+service ClientRead{
+    rpc SendRead(read_request) returns (read_reply);
+}
+
+service ClientReadWriteback{
+    rpc SendReadWriteback(read_writeback) returns (read_writeback_reply);
+}
+
+
+service ClientWrite{
+    rpc SendWrite(write_request) returns (write_reply);
+}
+
+service ClientWriteback{
+    rpc SendWriteback(writeback_request) returns (writeback_reply);
+}
+
+service GetLock{
+    rpc AcquireLock(lock_request) returns (lock_reply);
+}
