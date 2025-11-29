@@ -1,0 +1,2 @@
+# will contain ips for servers / server number, allows for easy change in clients/servers 
+
