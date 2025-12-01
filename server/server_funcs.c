@@ -1,25 +1,71 @@
 #include "server.h"
 #include "server_rpc.h"
+#include <string.h>
 
+// need a global to hold the server state (timestamp and value)
+static int  timestamp = 0;
+static char value[1024] = "";
 
-int server_init();
+// initialize the server state to 0 and empty string
+int server_init(void)
+{
+    timestamp = 0;
+    value[0] = '\0';
+    return 0;
+}
 
+// handles a read, returns current timestamp and value
 int server_receive_read(int *out_key,
-                    char *out_value,
-                    size_t out_value_size){}
+                        char *out_value,
+                        size_t out_value_size)
+{
+    if (out_key) {
+        *out_key = timestamp;
+    }
+    if (out_value && out_value_size > 0) {
+        strncpy(out_value, value, out_value_size - 1);
+        out_value[out_value_size - 1] = '\0';
+    }
+    return 0;
+}
 
-int server_read_writeback(int *out_key,
-                    char *out_value,
-                    size_t out_value_size){}
+// if incoming key is newer than current timestamp, update state 
+int server_read_writeback(int key,
+                          const char *out_value)
+{
+    if (!out_value) {
+        return -1;
+    }
 
+    if (key > timestamp) {
+        timestamp = key;
+        strncpy(value, out_value, sizeof(value) - 1);
+        value[sizeof(value) - 1] = '\0';
+    }
+
+    return 0;
+}
+
+// write query is pretty much the same as read query because we just return current state
 int server_receive_write(int *out_key,
-                    char *out_value){}
+                         char *out_value,
+                         size_t out_value_size)
+{
+    return server_receive_read(out_key, out_value, out_value_size);
+}
 
+// write writeback updates state if incoming key is newer than current timestamp (effecitvely the same as read writeback)
 int server_write_writeback(int key,
-                               char *value,
-                               char *client_id){}
+                           const char *out_value,
+                           const char *client_id){
 
-// int server_lock();
-// int server_unlock();
 
-void server_cleanup(){}
+    return server_read_writeback(key, new_value);
+}
+
+// just resets the state to initial values
+void server_cleanup(void)
+{
+    timestamp = 0;
+    value[0] = '\0';
+}
