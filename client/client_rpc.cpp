@@ -142,7 +142,7 @@ int rpc_send_read(const char *ip, int *out_key, char *out_value, size_t out_valu
     int key = 0;
     std::string value;
     // call the client to send the read request to the server
-    if (!client.SendRead(request, key, value)) {
+    if (!client.SendRead(key, value)) {
         return -1;
     }
     if (out_key) {
@@ -185,7 +185,7 @@ int rpc_send_write(const char *ip, int *out_key, char *out_value, size_t out_val
     // exact same setup as the read function, just calling the write client instead (need to do this to get the last highest timestamp, we dont really need the value but grabbing it just incase)
     int key = 0;
     std::string value;
-    if (!client.SendWrite(request, key, value)) {
+    if (!client.SendWrite(key, value)) {
         return -1;
     }
     if (out_key) {

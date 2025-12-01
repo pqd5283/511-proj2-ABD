@@ -92,11 +92,11 @@ void *read_thread_fn(void *arg) {
 void *read_wb_thread_fn(void *arg) {
     // unpack the writeback arguments struct
     writeback_thread_args *args = (writeback_thread_args *)arg;
-    int idx = args->server_index;
+    int index = args->server_index;
     int writeback_key = args->write_key;
     char *write_back_value = args->write_value;
     // send the read writeback rpc
-    int check = rpc_send_read_writeback(server_ips[idx], writeback_key, write_back_value);
+    int check = rpc_send_read_writeback(server_ips[index], writeback_key, write_back_value);
     if(check == 0){
         // success
         return NULL; 
@@ -113,8 +113,69 @@ int client_read(){
     int n = server_count;
     int q = n/2 + 1;
 
+    // define arrays to hold the returned keys and values from each server
+    int  key_arr[n];
+    char val_arr[n][1024];
 
+    pthread_t threads[n];
+    read_thread_args args[n];
+
+    // fill out the args and make a thread for each server that calls the previously defined read thread function
+    for (int i = 0; i < n; ++i) {
+        key_arr[i] = -1;
+        val_arr[i][0] = '\0';
+
+        args[i].server_index = i;
+        args[i].key_arr = key_arr;
+        args[i].val_arr = val_arr;
+
+        pthread_create(&threads[i], NULL, read_thread_fn, &args[i]);
+    }
+    // join them, kinda want to add some sort of a condition variable + maybe a timeout in the rpc so that when a quorum is reached we can stop waiting for the rest of the servers to respond
+    for (int i = 0; i < n; ++i) {
+        pthread_join(threads[i], NULL);
+    }
+
+    // copy over the value with the highest timestamp/key that we got from the servers, making sure we reached a quorum
+    int successes = 0;
+    int max_key = -1;
+    char max_value[1024] = "";
+
+    for (int i = 0; i < n; ++i) {
+        if (key_arr[i] < 0) {
+            continue; 
+        }
+        successes++;
+        if (key_arr[i] > max_key) {
+            max_key = key_arr[i];
+            strncpy(max_value, val_arr[i], sizeof(max_value) - 1);
+            max_value[sizeof(max_value) - 1] = '\0';
+        }
+    }
+
+    if (successes < q) {
+        // quorum not reached
+        return -1;
+    }
+
+    // write back the max key/value to all servers
+    pthread_t writeback_threads[n];
+    writeback_thread_args writeback_args[n];
+    // setup and create the writeback threads
+    for (int i = 0; i < n; ++i) {
+        writeback_args[i].server_index = i;
+        writeback_args[i].write_key = max_key;
+        writeback_args[i].write_value = max_value;
+
+        pthread_create(&writeback_threads[i], NULL, read_wb_thread_fn, &writeback_args[i]);
+    }
+    // join the writeback threads need to add an ack check later and timeout thing too maybe 
+    for (int i = 0; i < n; ++i) {
+        pthread_join(writeback_threads[i], NULL);
+    }
+    return 0;
 };
+
 
 int client_write(char *value){
 
