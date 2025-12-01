@@ -277,5 +277,9 @@ int client_write(char *value){
 }
 
 void client_cleanup(){
-    
+    if (server_ips) {
+        free(server_ips);
+        server_ips = NULL;
+    }
+    server_count = 0;
 };
