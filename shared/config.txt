@@ -1,2 +1,9 @@
 # will contain ips for servers / server number, allows for easy change in clients/servers 
+# server count
+
+server_count = 1
+
+# ips/ports (dummy value for rn)
+server0 = 0.0.0.0.500051
+
 

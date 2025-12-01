@@ -12,8 +12,9 @@
 int client_init();
 
 
-// waits for the quorom
-int client_wait();
+int client_read();
+
+int client_write(char *value);
 
 // cleans up the client, may make it so it only cleans up when a certain input by the user is made
 
