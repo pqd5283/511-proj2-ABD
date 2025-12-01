@@ -34,9 +34,8 @@ public:
     explicit ClientReadClient(std::shared_ptr<Channel> channel)
         : stub_(ClientRead::NewStub(channel)) {}
 
-    bool SendRead(int request_val, int &out_key, std::string &out_value) {
+    bool SendRead(int &out_key, std::string &out_value) {
         read_request req;
-        req.set_request(request_val);
 
         read_reply reply;
         ClientContext context;
@@ -84,9 +83,8 @@ public:
     explicit ClientWriteClient(std::shared_ptr<Channel> channel)
         : stub_(ClientWrite::NewStub(channel)) {}
 
-    bool SendWrite(int request_val, int &out_key, std::string &out_value) {
+    bool SendWrite(int &out_key, std::string &out_value) {
         write_request req;
-        req.set_request(request_val);
 
         write_reply reply;
         ClientContext context;
@@ -132,7 +130,7 @@ private:
 // will be able to call these in the c code to interact with the grpc stuff, need to be able to read and write 
 extern "C" {
 
-int rpc_send_read(const char *ip, int request, int *out_key, char *out_value, size_t out_value_size)
+int rpc_send_read(const char *ip, int *out_key, char *out_value, size_t out_value_size)
 {
     if (!ip) {
         return -1;
@@ -175,7 +173,7 @@ int rpc_send_read_writeback(const char *ip, int key, const char *value)
 
 }
 
-int rpc_send_write(const char *ip, int request, int *out_key, char *out_value, size_t out_value_size)
+int rpc_send_write(const char *ip, int *out_key, char *out_value, size_t out_value_size)
 {
     if (!ip) {
         return -1;
