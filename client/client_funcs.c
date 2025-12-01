@@ -177,8 +177,102 @@ int client_read(){
 };
 
 
-int client_write(char *value){
+// the write is honestly almost identical to the read as we need to read from a quorum first to get the highest timestamp pair then writeback the new value with an incremented timestamp 
+void *write_thread_fn(void *arg) {
+    // unpack the read argument struct 
+    read_thread_args *args = (read_thread_args *)arg;
+    int index = args->server_index;
 
+    // send the read rpc and store in the arrays
+    int key = 0;
+    char value[1024];
+
+    int check = rpc_send_write(server_ips[index], &key, value, sizeof(value));
+    if (check == 0) {
+        // success so store the returned key and empty value because we dont need it for the write
+        args->key_arr[index] = key;
+    } else {
+        // failed for some reason so mark as invalid? 
+        args->key_arr[index] = -1;
+    }
+    return NULL;
+}
+//nearly identical to the read thread function but for writeback
+void *write_wb_thread_fn(void *arg) {
+    // unpack the writeback arguments struct
+    writeback_thread_args *args = (writeback_thread_args *)arg;
+    int index = args->server_index;
+    int writeback_key = args->write_key;
+    char *write_back_value = args->write_value;
+    // send the read writeback rpc
+    int check = rpc_send_writeback(server_ips[index], writeback_key, write_back_value, "dummy_client_id");
+    if(check == 0){
+        // success
+        return NULL; 
+    } else {
+        // failed for some reason, maybe log it later
+    }
+    // could use some work maybe return something to indicate success/failure
+    return NULL;
+}
+
+int client_write(char *value){
+    int n = server_count;
+    int q = n/2 + 1;
+
+    pthread_t threads[n];
+    read_thread_args args[n];
+    // same code as the read to get the highest timestamped key/value pair from a quorum of servers
+    int  key_arr[n];
+    char val_arr[n][1024];
+    for (int i = 0; i < n; ++i) {
+        key_arr[i] = -1;
+        val_arr[i][0] = '\0';
+
+        args[i].server_index = i;
+        args[i].key_arr = key_arr;
+        args[i].val_arr = val_arr;
+
+        pthread_create(&threads[i], NULL, write_thread_fn, &args[i]);
+    }
+    for (int i = 0; i < n; ++i) {
+        pthread_join(threads[i], NULL);
+    }
+
+    int successes = 0;
+    int max_key = -1;
+
+    for (int i = 0; i < n; ++i) {
+        if (key_arr[i] < 0) {
+            continue; 
+        }
+        successes++;
+        if (key_arr[i] > max_key) {
+            max_key = key_arr[i];
+        }
+    }
+
+    if (successes < q) {
+        // quorum not reached
+        return -1;
+    }
+    // this is where it slightly differs from the read, we need to writeback the new value with an incremented key/timestamp
+    pthread_t writeback_threads[n];
+    writeback_thread_args writeback_args[n];
+
+    for (int i = 0; i < n; ++i) {
+        writeback_args[i].server_index = i;
+        writeback_args[i].write_key = max_key + 1; // increment the key for the write
+        writeback_args[i].write_value = value;
+
+        pthread_create(&writeback_threads[i], NULL, write_wb_thread_fn, &writeback_args[i]);
+    }
+
+    // join them, need to add quorum check and timeout later 
+    for (int i = 0; i < n; ++i) {
+        pthread_join(writeback_threads[i], NULL);
+    }
+    return 0;
 
 }
 
