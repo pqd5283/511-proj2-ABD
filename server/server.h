@@ -6,6 +6,9 @@
 
 // like the client i think we will need an init and cleanup, then maybe a receive read function and a 
 // receive write function, eventually will add the locking functions but that can wait until i get base abd down
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int server_init(void);
 
@@ -28,5 +31,8 @@ int server_write_writeback(int key,
 // int server_unlock();
 
 void server_cleanup();
+#ifdef __cplusplus
+}
+#endif
 
 #endif
