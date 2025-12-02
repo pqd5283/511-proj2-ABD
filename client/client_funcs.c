@@ -13,7 +13,7 @@ char (*server_ips)[128];
 int client_init(){
  char line[256];
 
-    FILE *config = fopen("shared/config.txt", "r");
+    FILE *config = fopen("../shared/config.txt", "r");
     if (!config) {
         return -1;
     }
@@ -48,7 +48,7 @@ int client_init(){
     }
     fclose(config);
     return 0;
-
+    
 };
 
 // for read and write i think i need to make this multi threaded so that we can contact all servers at once and wait for responses
