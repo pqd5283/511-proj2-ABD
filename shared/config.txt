@@ -4,6 +4,6 @@
 server_count = 1
 
 # ips/ports (dummy value for rn)
-server0 = 172.31.10.31:500051
+server0 = 172.31.10.31:50051
 
 
