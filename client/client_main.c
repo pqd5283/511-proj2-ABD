@@ -10,7 +10,7 @@ int main(void) {
         return 1;
     }
 
-    Printf("Type commands: read, write <value>, quit\n");
+    printf("Type commands: read, write <value>, quit\n");
 
     char command[128];
     while (1) {

@@ -60,7 +60,7 @@ int server_write_writeback(int key,
                            const char *client_id){
 
 
-    return server_read_writeback(key, new_value);
+    return server_read_writeback(key, out_value);
 }
 
 // just resets the state to initial values
