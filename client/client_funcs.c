@@ -47,6 +47,11 @@ int client_init(){
         }
     }
     fclose(config);
+    printf("Client initialized with %d servers\n", server_count);
+    printf("Client server IPs:\n");
+    for (int i = 0; i < server_count; i++) {
+        printf("Server %d: %s\n", i, server_ips[i]);
+    }
     return 0;
     
 };
@@ -74,8 +79,9 @@ void *read_thread_fn(void *arg) {
     // send the read rpc and store in the arrays
     int key = 0;
     char value[1024];
-
+    printf("Client sending read to server %d at %s\n", index, server_ips[index]);
     int check = rpc_send_read(server_ips[index], &key, value, sizeof(value));
+    printf("Client received read response from server %d: key =%d, value=%s\n", index, key, value);
     if (check == 0) {
         // success so store the returned values
         args->key_arr[index] = key;
@@ -86,11 +92,13 @@ void *read_thread_fn(void *arg) {
         args->key_arr[index] = -1;
         args->val_arr[index][0] = '\0';
     }
+    printf("Client read thread for server %d done\n", index);
     return NULL;
 }
 
 void *read_wb_thread_fn(void *arg) {
     // unpack the writeback arguments struct
+    printf("writing back to server\n");
     writeback_thread_args *args = (writeback_thread_args *)arg;
     int index = args->server_index;
     int writeback_key = args->write_key;
@@ -99,6 +107,7 @@ void *read_wb_thread_fn(void *arg) {
     int check = rpc_send_read_writeback(server_ips[index], writeback_key, write_back_value);
     if(check == 0){
         // success
+        printf("Client writeback to server %d done\n", index);
         return NULL; 
     } else {
         // failed for some reason, maybe log it later
@@ -130,10 +139,12 @@ int client_read(){
         args[i].val_arr = val_arr;
 
         pthread_create(&threads[i], NULL, read_thread_fn, &args[i]);
+        printf("Client created read thread for server %d\n", i);
     }
     // join them, kinda want to add some sort of a condition variable + maybe a timeout in the rpc so that when a quorum is reached we can stop waiting for the rest of the servers to respond
     for (int i = 0; i < n; ++i) {
         pthread_join(threads[i], NULL);
+        printf("Client joined read thread for server %d\n", i);
     }
 
     // copy over the value with the highest timestamp/key that we got from the servers, making sure we reached a quorum
@@ -150,6 +161,7 @@ int client_read(){
             max_key = key_arr[i];
             strncpy(max_value, val_arr[i], sizeof(max_value) - 1);
             max_value[sizeof(max_value) - 1] = '\0';
+            printf("Client found new max key %d with value %s from server %d\n", max_key, max_value, i);
         }
     }
 
@@ -168,6 +180,7 @@ int client_read(){
         writeback_args[i].write_value = max_value;
 
         pthread_create(&writeback_threads[i], NULL, read_wb_thread_fn, &writeback_args[i]);
+        printf("Client created writeback thread for server %d\n", i);
     }
     // join the writeback threads need to add an ack check later and timeout thing too maybe 
     for (int i = 0; i < n; ++i) {
@@ -181,6 +194,7 @@ int client_read(){
 // the write is honestly almost identical to the read as we need to read from a quorum first to get the highest timestamp pair then writeback the new value with an incremented timestamp 
 void *write_thread_fn(void *arg) {
     // unpack the read argument struct 
+    printf("write received")
     read_thread_args *args = (read_thread_args *)arg;
     int index = args->server_index;
 
@@ -191,6 +205,7 @@ void *write_thread_fn(void *arg) {
     int check = rpc_send_write(server_ips[index], &key, value, sizeof(value));
     if (check == 0) {
         // success so store the returned key and empty value because we dont need it for the write
+        printf("Client received write response from server %d: key =%d\n", index, key);
         args->key_arr[index] = key;
     } else {
         // failed for some reason so mark as invalid? 

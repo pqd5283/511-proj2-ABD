@@ -126,6 +126,10 @@ void RunABDServer(const std::string& address) {
 
 // main function to start the server
 int main(int argc, char** argv) {
+    if(server_init();) {
+        std::cerr << "Server initialization failed." << std::endl;
+        return 1;
+    }
     std::string port = "50051";
     if (argc > 1) {
         port = argv[1];

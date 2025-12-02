@@ -11,6 +11,7 @@ int server_init(void)
 {
     timestamp = 0;
     value[0] = '\0';
+    printf("server initialized \n");
     return 0;
 }
 
@@ -19,6 +20,7 @@ int server_receive_read(int *out_key,
                         char *out_value,
                         size_t out_value_size)
 {
+    printf("server_receive_read called \n");
     if (out_key) {
         *out_key = timestamp;
     }
@@ -26,6 +28,7 @@ int server_receive_read(int *out_key,
         strncpy(out_value, value, out_value_size - 1);
         out_value[out_value_size - 1] = '\0';
     }
+    printf("server_receive_read returning key: %d, value: %s \n", timestamp, value);
     return 0;
 }
 
@@ -33,6 +36,7 @@ int server_receive_read(int *out_key,
 int server_read_writeback(int key,
                           const char *out_value)
 {
+    printf("server_read_writeback called with key: %d, value: %s \n", key, out_value);
     if (!out_value) {
         return -1;
     }
@@ -42,7 +46,7 @@ int server_read_writeback(int key,
         strncpy(value, out_value, sizeof(value) - 1);
         value[sizeof(value) - 1] = '\0';
     }
-
+    printf("server_read_writeback updated state to key: %d, value: %s \n", timestamp, value);
     return 0;
 }
 
@@ -51,6 +55,7 @@ int server_receive_write(int *out_key,
                          char *out_value,
                          size_t out_value_size)
 {
+    printf("server_receive_write called \n");
     return server_receive_read(out_key, out_value, out_value_size);
 }
 
@@ -59,7 +64,7 @@ int server_write_writeback(int key,
                            const char *out_value,
                            const char *client_id){
 
-
+    printf("server_write_writeback called from client %s \n", client_id);
     return server_read_writeback(key, out_value);
 }
 
