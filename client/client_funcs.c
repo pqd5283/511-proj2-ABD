@@ -173,6 +173,7 @@ int client_read(){
     for (int i = 0; i < n; ++i) {
         pthread_join(writeback_threads[i], NULL);
     }
+    printf("Read value: %s with timestamp %d\n", max_value, max_key);
     return 0;
 };
 
@@ -272,6 +273,7 @@ int client_write(char *value){
     for (int i = 0; i < n; ++i) {
         pthread_join(writeback_threads[i], NULL);
     }
+    printf("Writeback complete with timestamp %d\n", max_key + 1);
     return 0;
 
 }
