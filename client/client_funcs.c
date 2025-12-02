@@ -194,7 +194,7 @@ int client_read(){
 // the write is honestly almost identical to the read as we need to read from a quorum first to get the highest timestamp pair then writeback the new value with an incremented timestamp 
 void *write_thread_fn(void *arg) {
     // unpack the read argument struct 
-    printf("write received")
+    printf("write received");
     read_thread_args *args = (read_thread_args *)arg;
     int index = args->server_index;
 
