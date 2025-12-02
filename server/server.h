@@ -2,7 +2,7 @@
 #define ABD_SERVER_H
 
 #include <stddef.h>
-#include "shared/shared_abd.h"
+#include "../shared/shared_abd.h"
 
 // like the client i think we will need an init and cleanup, then maybe a receive read function and a 
 // receive write function, eventually will add the locking functions but that can wait until i get base abd down

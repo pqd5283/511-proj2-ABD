@@ -6,7 +6,7 @@
 
 #include "../proto/abdalgorithm.grpc.pb.h"
 #include "server_rpc.h"
-#include "server_funcs.h"
+#include "server.h"
 
 using grpc::Server;
 using grpc::ServerBuilder;
