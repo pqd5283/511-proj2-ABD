@@ -11,7 +11,7 @@ static char value[1024] = "";
 int server_init(void)
 {
     timestamp = 0;
-    value[0] = '\0';
+    value[1024] = 'base';
     printf("server initialized \n");
     return 0;
 }

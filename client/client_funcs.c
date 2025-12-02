@@ -169,7 +169,7 @@ int client_read(){
         // quorum not reached
         return -1;
     }
-
+    printf("Client reached quorum with %d successes\n", successes);
     // write back the max key/value to all servers
     pthread_t writeback_threads[n];
     writeback_thread_args writeback_args[n];

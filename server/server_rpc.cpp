@@ -39,7 +39,7 @@ public:
         if (server_receive_read(&key, value_buf, sizeof(value_buf)) != 0) {
             return Status(grpc::StatusCode::INTERNAL, "abd_handle_read failed");
         }
-
+        printf("successful read with key %d and value %s\n", key, value_buf);
         reply->set_key(key);
         reply->set_value(value_buf);
         return Status::OK;
@@ -58,7 +58,7 @@ public:
         int key = request->key();
         const std::string& value = request->value();
 
-
+        printf("server received read writeback for key %d with value %s\n", key, value.c_str());
         int check = server_read_writeback(key, value.c_str());
         reply->set_success(check == 0);
 
@@ -80,7 +80,7 @@ public:
         if (server_receive_write(&key, value_buf, sizeof(value_buf)) != 0) {
             return Status(grpc::StatusCode::INTERNAL, "abd_handle_write_query failed");
         }
-
+        printf("successful write with key %d and value %s\n", key, value_buf);
         reply->set_key(key);
         reply->set_value(value_buf);
         return Status::OK;
@@ -101,7 +101,7 @@ public:
 
         int check = server_write_writeback(key, value.c_str(), client_id.c_str());
         reply->set_success(check == 0);
-
+        printf("server received write writeback for key %d with value %s from client %s\n", key, value.c_str(), client_id.c_str());
         return Status::OK;
     }
 };
