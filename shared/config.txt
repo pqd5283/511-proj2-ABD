@@ -3,6 +3,10 @@
 
 server_count = 1
 
+#quorums 
+W = 1
+R = 1
+
 # ips/ports
 server0 = 172.31.10.31:50051
 

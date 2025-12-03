@@ -8,6 +8,8 @@
 
 int  server_count = 0;
 char (*server_ips)[128];
+int W = 0;
+int R = 0;
 
 // opens up the config file and reads in the server ips and ports 
 int client_init(){
@@ -36,6 +38,13 @@ int client_init(){
             }
             
         }
+        //quorum of W and R 
+        else if (strncmp(line, "W", 1) == 0) {
+            sscanf(line, "W = %d", &W);
+        }
+        else if (strncmp(line, "R", 1) == 0) {
+            sscanf(line, "R = %d", &R);
+        }
         // server# = ip:port
         else if (strncmp(line, "server", 6) == 0) {
             int index = 0;
@@ -47,6 +56,13 @@ int client_init(){
         }
     }
     fclose(config);
+    if (R <= 0) {
+        R = server_count / 2 + 1;
+    }
+    if (W <= 0) {
+        W = server_count / 2 + 1;
+    }
+
     printf("Client initialized with %d servers\n", server_count);
     printf("Client server IPs:\n");
     for (int i = 0; i < server_count; i++) {
@@ -120,7 +136,7 @@ void *read_wb_thread_fn(void *arg) {
 int client_read(){
 
     int n = server_count;
-    int q = n/2 + 1;
+    int q = R;
 
     // define arrays to hold the returned keys and values from each server
     int  key_arr[n];
@@ -234,7 +250,7 @@ void *write_wb_thread_fn(void *arg) {
 
 int client_write(char *value){
     int n = server_count;
-    int q = n/2 + 1;
+    int q = W;
 
     pthread_t threads[n];
     read_thread_args args[n];
