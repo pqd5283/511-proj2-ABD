@@ -24,6 +24,9 @@ using abd::write_request;
 using abd::write_reply;
 using abd::writeback_request;
 using abd::writeback_reply;
+using abd::GetLock;
+using abd::lock_request;
+using abd::lock_reply;
 
 // a lot of this code is yet again taken from and modified from the last project 
 //server read 
@@ -106,12 +109,32 @@ public:
     }
 };
 
+// server lock service
+class ClientLockService final : public GetLock::Service {
+public:
+    Status AcquireLock(ServerContext* context,
+                       const lock_request* request,
+                       lock_reply* reply) override {
+
+        // the key is just gonna be set to a dummy value it doesnt really mean anything i dont think
+        // just being sent to identify that there was a lock request
+        std::string key = request->key();
+
+        int check = server_acquire_lock(key.c_str());
+        reply->set_granted(granted);
+        printf("server received lock request with key %s\n", key.c_str());
+        return Status::OK;
+    }
+};
+
+
 // setup and run the server
 void RunABDServer(const std::string& address) {
     ClientReadService read_service;
     ClientReadWritebackService readwb_service;
     ClientWriteService write_service;
     ClientWritebackService writewb_service;
+    ClientLockService lock_service;
 
     ServerBuilder builder;
     builder.AddListeningPort(address, grpc::InsecureServerCredentials());
@@ -119,6 +142,7 @@ void RunABDServer(const std::string& address) {
     builder.RegisterService(&readwb_service);
     builder.RegisterService(&write_service);
     builder.RegisterService(&writewb_service);
+    build.RegisterService(&lock_service);
 
     std::unique_ptr<Server> server(builder.BuildAndStart());
     server->Wait();

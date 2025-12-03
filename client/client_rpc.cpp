@@ -141,6 +141,31 @@ private:
     std::unique_ptr<ClientWriteback::Stub> stub_;
 };
 
+class GetLockClient {
+public:
+    explicit GetLockClient(std::shared_ptr<Channel> channel)
+        : stub_(GetLock::NewStub(channel)) {}
+
+    bool Acquire(const std::string &key) {
+        lock_request req;
+        req.set_key(key);
+
+        lock_reply reply;
+        ClientContext context;
+        auto deadline = std::chrono::system_clock::now() + std::chrono::milliseconds(5000); // 5 second deadline (for now)
+        context.set_deadline(deadline);
+
+        Status status = stub_->AcquireLock(&context, req, &reply);
+        if (!status.ok()){
+            return false;
+        }
+        return reply.granted();
+    }
+
+private:
+    std::unique_ptr<GetLock::Stub> stub_;
+};
+
 // will be able to call these in the c code to interact with the grpc stuff, need to be able to read and write 
 extern "C" {
 
@@ -228,4 +253,14 @@ int rpc_send_writeback(const char *ip, int key, const char *value, const char *c
     return 0;
 }
 
+int rpc_acquire_lock(const char ip, const char *key)
+{
+    if(!key || !ip) {
+        return -1;
+    }
+    std::string server_address = key;
+    GetLockClient client(
+        grpc::CreateChannel(server_address, grpc::InsecureChannelCredentials()));
+    return 0;
+}
 } 
