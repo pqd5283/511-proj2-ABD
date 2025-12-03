@@ -43,7 +43,7 @@ public:
         Status status = stub_->SendRead(&context, req, &reply);
         if (!status.ok()) {
             std::cerr << "SendRead RPC failed: code=" << status.error_code()
-            << " message=" << status.error_message() << std::endl
+            << " message=" << status.error_message() << std::endl;
             return false;
         }
 
