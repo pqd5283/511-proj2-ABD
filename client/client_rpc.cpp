@@ -36,12 +36,14 @@ public:
 
     bool SendRead(int &out_key, std::string &out_value) {
         read_request req;
-
+        
         read_reply reply;
         ClientContext context;
 
         Status status = stub_->SendRead(&context, req, &reply);
         if (!status.ok()) {
+            std::cerr << "SendRead RPC failed: code=" << status.error_code()
+            << " message=" << status.error_message() << std::endl
             return false;
         }
 
