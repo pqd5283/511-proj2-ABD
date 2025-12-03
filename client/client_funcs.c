@@ -295,6 +295,15 @@ void *write_thread_fn(void *arg) {
         // failed for some reason so mark as invalid? 
         args->key_arr[index] = -1;
     }
+    // update the shared counters with the lock
+    pthread_mutex_lock(args->lock);
+    (*args->completed)++;
+    // if success increment successes too
+    if (check == 0) {
+        (*args->successes)++;
+    }
+    pthread_cond_signal(args->cond);
+    pthread_mutex_unlock(args->lock);
     return NULL;
 }
 //nearly identical to the read thread function but for writeback
@@ -308,11 +317,19 @@ void *write_wb_thread_fn(void *arg) {
     int check = rpc_send_writeback(server_ips[index], writeback_key, write_back_value, "dummy_client_id");
     if(check == 0){
         // success
-        return NULL; 
     } else {
         // failed for some reason, maybe log it later
     }
     // could use some work maybe return something to indicate success/failure
+
+    pthread_mutex_lock(args->lock);
+    (*args->completed)++;
+    // if success increment successes too
+    if (check == 0) {
+        (*args->acks)++;
+    }
+    pthread_cond_signal(args->cond);
+    pthread_mutex_unlock(args->lock);
     return NULL;
 }
 
@@ -325,6 +342,12 @@ int client_write(char *value){
     // same code as the read to get the highest timestamped key/value pair from a quorum of servers
     int  key_arr[n];
     char val_arr[n][1024];
+
+    int completed = 0;
+    int successes = 0;
+    pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+    pthread_cond_t  cond = PTHREAD_COND_INITIALIZER;
+
     for (int i = 0; i < n; ++i) {
         key_arr[i] = -1;
         val_arr[i][0] = '\0';
@@ -333,46 +356,77 @@ int client_write(char *value){
         args[i].key_arr = key_arr;
         args[i].val_arr = val_arr;
 
+        
+        args[i].completed = &completed;
+        args[i].successes = &successes;
+        args[i].lock = &lock;
+        args[i].cond = &cond;
+
         pthread_create(&threads[i], NULL, write_thread_fn, &args[i]);
     }
+
+    pthread_mutex_lock(&lock);
+    while (successes < q && completed < n) {
+        pthread_cond_wait(&cond, &lock);
+    }
+    pthread_mutex_unlock(&lock);
+
     for (int i = 0; i < n; ++i) {
         pthread_join(threads[i], NULL);
     }
 
-    int successes = 0;
+    int responses = 0;
     int max_key = -1;
 
     for (int i = 0; i < n; ++i) {
         if (key_arr[i] < 0) {
             continue; 
         }
-        successes++;
+        responses++;
         if (key_arr[i] > max_key) {
             max_key = key_arr[i];
         }
     }
 
-    if (successes < q) {
+    if (responses < q) {
         // quorum not reached
         return -1;
     }
     // this is where it slightly differs from the read, we need to writeback the new value with an incremented key/timestamp
     pthread_t writeback_threads[n];
     writeback_thread_args writeback_args[n];
+    // reset counter for writeback
+    completed = 0;
+    int acks = 0;
 
     for (int i = 0; i < n; ++i) {
         writeback_args[i].server_index = i;
         writeback_args[i].write_key = max_key + 1; // increment the key for the write
         writeback_args[i].write_value = value;
 
+        writeback_args[i].completed = &completed;
+        writeback_args[i].acks = &acks;
+        writeback_args[i].lock = &lock;
+        writeback_args[i].cond = &cond;
+        
+
         pthread_create(&writeback_threads[i], NULL, write_wb_thread_fn, &writeback_args[i]);
     }
+
+    // wait for quorum of acks from writebacks
+    pthread_mutex_lock(&lock);
+    while (acks < q && completed < n) {
+        pthread_cond_wait(&cond, &lock);
+    }
+    pthread_mutex_unlock(&lock);
 
     // join them, need to add quorum check and timeout later 
     for (int i = 0; i < n; ++i) {
         pthread_join(writeback_threads[i], NULL);
     }
     printf("Writeback complete with timestamp %d\n", max_key + 1);
+    pthread_mutex_destroy(&lock);
+    pthread_cond_destroy(&cond);
     return 0;
 
 }
