@@ -40,6 +40,9 @@ public:
         read_reply reply;
         ClientContext context;
 
+        auto deadline = std::chrono::system_clock::now() + std::chrono::milliseconds(5000); // 5 second deadline (for now)
+        context.set_deadline(deadline);
+
         Status status = stub_->SendRead(&context, req, &reply);
         if (!status.ok()) {
             std::cerr << "SendRead RPC failed: code=" << status.error_code()
@@ -69,6 +72,9 @@ public:
         read_writeback_reply reply;
         ClientContext context;
 
+        auto deadline = std::chrono::system_clock::now() + std::chrono::milliseconds(5000); // 5 second deadline (for now)
+        context.set_deadline(deadline);
+
         Status status = stub_->SendReadWriteback(&context, req, &reply);
         if (!status.ok()) {
             return false;
@@ -90,6 +96,9 @@ public:
 
         write_reply reply;
         ClientContext context;
+
+        auto deadline = std::chrono::system_clock::now() + std::chrono::milliseconds(5000); // 5 second deadline (for now)
+        context.set_deadline(deadline);
 
         Status status = stub_->SendWrite(&context, req, &reply);
         if (!status.ok()) {
@@ -117,6 +126,9 @@ public:
 
         writeback_reply reply;
         ClientContext context;
+
+        auto deadline = std::chrono::system_clock::now() + std::chrono::milliseconds(5000); // 5 second deadline (for now)
+        context.set_deadline(deadline);
 
         Status status = stub_->SendWriteback(&context, req, &reply);
         if (!status.ok()) {
