@@ -7,12 +7,18 @@
 static int  timestamp = 0;
 static char value[1024] = "";
 
+// mutex to protect server state
+static pthread_mutex_t state_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+
 // initialize the server state to 0 and empty string
 int server_init(void)
 {
+    pthread_mutex_lock(&state_mutex);
     timestamp = 0;
     strcpy(value, "base");
     printf("server initialized \n");
+    pthread_mutex_unlock(&state_mutex);
     return 0;
 }
 
@@ -22,6 +28,7 @@ int server_receive_read(int *out_key,
                         size_t out_value_size)
 {
     printf("server_receive_read called \n");
+    pthread_mutex_lock(&state_mutex);
     if (out_key) {
         *out_key = timestamp;
     }
@@ -29,6 +36,7 @@ int server_receive_read(int *out_key,
         strncpy(out_value, value, out_value_size - 1);
         out_value[out_value_size - 1] = '\0';
     }
+    pthread_mutex_unlock(&state_mutex);
     printf("server_receive_read returning key: %d, value: %s \n", timestamp, value);
     return 0;
 }
@@ -42,11 +50,14 @@ int server_read_writeback(int key,
         return -1;
     }
 
+    pthread_mutex_lock(&state_mutex);
     if (key > timestamp) {
         timestamp = key;
         strncpy(value, out_value, sizeof(value) - 1);
         value[sizeof(value) - 1] = '\0';
     }
+    pthread_mutex_unlock(&state_mutex);
+
     printf("server_read_writeback updated state to key: %d, value: %s \n", timestamp, value);
     return 0;
 }
@@ -70,6 +81,7 @@ int server_write_writeback(int key,
 }
 
 // just resets the state to initial values
+// lowkey this never gets used but whatever
 void server_cleanup(void)
 {
     timestamp = 0;
