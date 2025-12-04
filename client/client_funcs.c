@@ -63,11 +63,11 @@ int client_init(){
         W = server_count / 2 + 1;
     }
 
-    printf("Client initialized with %d servers\n", server_count);
-    printf("Client server IPs:\n");
-    for (int i = 0; i < server_count; i++) {
-        printf("Server %d: %s\n", i, server_ips[i]);
-    }
+    //printf("Client initialized with %d servers\n", server_count);
+    //printf("Client server IPs:\n");
+    //for (int i = 0; i < server_count; i++) {
+        //printf("Server %d: %s\n", i, server_ips[i]);
+    //}
     return 0;
     
 };
@@ -146,11 +146,11 @@ void *read_thread_fn(void *arg) {
     // send the read rpc and store in the arrays
     int key = 0;
     char value[1024];
-    printf("Client sending read to server %d at %s\n", index, server_ips[index]);
+    //printf("Client sending read to server %d at %s\n", index, server_ips[index]);
     int check = rpc_send_read(args->granted_ips[index], &key, value, sizeof(value));
     //int check = rpc_send_read(server_ips[index], &key, value, sizeof(value));
     pthread_mutex_lock(args->lock);
-    printf("Client received read response from server %d: key =%d, value=%s\n", index, key, value);
+   // printf("Client received read response from server %d: key =%d, value=%s\n", index, key, value);
     if (check == 0) {
         // success so store the returned values
         args->key_arr[index] = key;
@@ -171,13 +171,13 @@ void *read_thread_fn(void *arg) {
     pthread_cond_signal(args->cond);
     pthread_mutex_unlock(args->lock);
 
-    printf("Client read thread for server %d done\n", index);
+    //printf("Client read thread for server %d done\n", index);
     return NULL;
 }
 
 void *read_wb_thread_fn(void *arg) {
     // unpack the writeback arguments struct
-    printf("writing back to server\n");
+    //printf("writing back to server\n");
     writeback_thread_args *args = (writeback_thread_args *)arg;
     int index = args->server_index;
     int writeback_key = args->write_key;
@@ -189,7 +189,7 @@ void *read_wb_thread_fn(void *arg) {
     //int check = rpc_send_read_writeback(server_ips[index], writeback_key, write_back_value);
     if(check == 0){
         // success
-        printf("Client writeback to server %d done\n", index);
+        //printf("Client writeback to server %d done\n", index);
     } else {
         // failed for some reason, maybe log it later
     }
@@ -305,7 +305,7 @@ int client_read(){
         args[i].lock_granted = lock_granted;
 
         pthread_create(&threads[i], NULL, read_thread_fn, &args[i]);
-        printf("Client created read thread for server %d\n", i);
+        //printf("Client created read thread for server %d\n", i);
     }
     // wait for quorum of responses and then continue this thread to process them
     pthread_mutex_lock(&lock);
@@ -328,7 +328,7 @@ int client_read(){
             max_key = key_arr[i];
             strncpy(max_value, val_arr[i], sizeof(max_value) - 1);
             max_value[sizeof(max_value) - 1] = '\0';
-            printf("Client found new max key %d with value %s from server %d\n", max_key, max_value, i);
+           // printf("Client found new max key %d with value %s from server %d\n", max_key, max_value, i);
         }
     }
     pthread_mutex_unlock(&lock);
@@ -338,10 +338,10 @@ int client_read(){
         // quorum not reached
         free(granted_ips);
         free(lock_granted);
-        printf("Client failed to reach quorum, only got %d responses\n", responses);
+        //printf("Client failed to reach quorum, only got %d responses\n", responses);
         return -1;
     }
-    printf("Client reached quorum with %d successes\n", successes);
+    //printf("Client reached quorum with %d successes\n", successes);
     // write back the max key/value to all servers
     pthread_t writeback_threads[n];
     writeback_thread_args writeback_args[n];
@@ -366,7 +366,7 @@ int client_read(){
         writeback_args[i].lock_granted = lock_granted;  
 
         pthread_create(&writeback_threads[i], NULL, read_wb_thread_fn, &writeback_args[i]);
-        printf("Client created writeback thread for server %d\n", i);
+       // printf("Client created writeback thread for server %d\n", i);
     }
 
     // wait for quorum of acks from writebacks
@@ -385,7 +385,7 @@ int client_read(){
             pthread_join(writeback_threads[i], NULL);
         }
         pthread_join(lock_threads[i], NULL);
-        printf("Client joined threads for server %d\n", i);
+        //printf("Client joined threads for server %d\n", i);
     }
     pthread_mutex_destroy(&lock);
     pthread_cond_destroy(&cond);
@@ -405,7 +405,7 @@ int client_read(){
 // the write is honestly almost identical to the read as we need to read from a quorum first to get the highest timestamp pair then writeback the new value with an incremented timestamp 
 void *write_thread_fn(void *arg) {
     // unpack the read argument struct 
-    printf("write received");
+    //printf("write received");
     read_thread_args *args = (read_thread_args *)arg;
     int index = args->server_index;
     char (*granted_ips)[128] = args->granted_ips;
@@ -421,7 +421,7 @@ void *write_thread_fn(void *arg) {
     pthread_mutex_lock(args->lock);
     if (check == 0) {
         // success so store the returned key and empty value because we dont need it for the write
-        printf("Client received write response from server %d: key =%d\n", index, key);
+        //printf("Client received write response from server %d: key =%d\n", index, key);
         args->key_arr[index] = key;
     } else {
         // failed for some reason so mark as invalid? 

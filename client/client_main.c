@@ -10,7 +10,7 @@ int main(void) {
         return 1;
     }
 
-    printf("Type commands: read, write <value>, quit\n");
+    //printf("Type commands: read, write <value>, quit\n");
 
     char command[128];
     while (1) {
@@ -20,7 +20,7 @@ int main(void) {
 
         if (strncmp(command, "read", 4) == 0) {
             if (client_read() != 0) {
-                printf("Read failed\n");
+                ("Read failed\n");
             } else {
                 printf("Read succeeded\n");
             }
