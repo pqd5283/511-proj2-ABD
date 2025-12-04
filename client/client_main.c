@@ -58,8 +58,8 @@ int main(void) {
         fprintf(stderr, "client_init failed\n");
         return 1;
     }
-    int num_threads  = 10;  // total "clients"
-    int num_writers  = num_threads / 10;  // 10% writers, 90% readers
+    int num_threads = 10;  // total "clients"
+    int num_writers = num_threads / 10;  // 10% writers, 90% readers
 
     pthread_t threads[num_threads];
     client_stats_t stats[num_threads];
@@ -69,8 +69,8 @@ int main(void) {
         stats[i] = (client_stats_t){0};
         args[i].thread_id = i;
         // first num_writers threads do writes, rest do reads
-        args[i].do_write  = (i < num_writers) ? 1 : 0;
-        args[i].stats     = &stats[i];
+        args[i].do_write = (i < num_writers) ? 1 : 0;
+        args[i].stats = &stats[i];
     }
 
     double start = now_sec();
@@ -87,11 +87,11 @@ int main(void) {
     double total_time = end - start;
 
     // aggregate results 
-    long total_reads = 0
+    long total_reads = 0;
     long total_writes = 0;
-    long read_fail = 0
+    long read_fail = 0;
     long write_fail = 0;
-    double read_time = 0
+    double read_time = 0;
     double write_time = 0;
 
     for (int i = 0; i < num_threads; ++i) {
