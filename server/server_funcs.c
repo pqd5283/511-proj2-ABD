@@ -1,5 +1,4 @@
 #include "server.h"
-#include "server_rpc.h"
 #include <string.h>
 #include <stdio.h>
 #include <pthread.h>
