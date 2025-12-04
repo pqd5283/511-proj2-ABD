@@ -2,6 +2,7 @@
 #include "server_rpc.h"
 #include <string.h>
 #include <stdio.h>
+#include <pthread.h>
 
 // need a global to hold the server state (timestamp and value)
 static int  timestamp = 0;
