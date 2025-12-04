@@ -256,7 +256,7 @@ int rpc_send_writeback(const char *ip, int key, const char *value, const char *c
     return 0;
 }
 
-int rpc_acquire_lock(const char ip, int *granted)
+int rpc_acquire_lock(const char *ip, int *granted)
 {
     if(!ip) {
         return -1;

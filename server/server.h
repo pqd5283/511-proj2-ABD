@@ -30,6 +30,11 @@ int server_write_writeback(int key,
 // int server_lock();
 // int server_unlock();
 
+int server_acquire_lock(const char *key);
+
+int server_release_lock(const char *key);
+
+
 void server_cleanup();
 #ifdef __cplusplus
 }
