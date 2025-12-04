@@ -210,7 +210,7 @@ void *read_wb_thread_fn(void *arg) {
 }
 
 
-int client_blocked_read(){
+int client_read(){
 
     int n = server_count;
     int q = R;
@@ -367,6 +367,11 @@ int client_blocked_read(){
     }
     pthread_mutex_destroy(&lock);
     pthread_cond_destroy(&cond);
+    // reset the granted IPS 
+    for (int i = 0; i < server_count; ++i) {
+        lock_granted[i] = 0;
+        granted_ips[i][0] = '\0';
+    }
     return 0;
 };
 
@@ -382,7 +387,9 @@ void *write_thread_fn(void *arg) {
     int key = 0;
     char value[1024];
 
-    int check = rpc_send_write(server_ips[index], &key, value, sizeof(value));
+    int check = rpc_send_write(granted_ips[index], &key, value, sizeof(value));
+    //int check = rpc_send_write(server_ips[index], &key, value, sizeof(value));
+
     pthread_mutex_lock(args->lock);
     if (check == 0) {
         // success so store the returned key and empty value because we dont need it for the write
@@ -410,7 +417,8 @@ void *write_wb_thread_fn(void *arg) {
     int writeback_key = args->write_key;
     char *write_back_value = args->write_value;
     // send the read writeback rpc
-    int check = rpc_send_writeback(server_ips[index], writeback_key, write_back_value, "dummy_client_id");
+    //int check = rpc_send_writeback(server_ips[index], writeback_key, write_back_value, "dummy_client_id");
+    int check = rpc_send_writeback(granted_ips[index], writeback_key, write_back_value, "dummy_client_id");
     if(check == 0){
         // success
     } else {
@@ -444,9 +452,56 @@ int client_write(char *value){
     pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
     pthread_cond_t  cond = PTHREAD_COND_INITIALIZER;
 
+    pthread_t lock_threads[n];
+    lock_thread_args lock_args[n];
+
+    for (int i = 0; i < n; ++i) {    
+        lock_args[i].server_index = i;
+        lock_args[i].completed = &completed;
+        lock_args[i].granted_counter = &successes;
+        lock_args[i].lock = &lock;
+        lock_args[i].cond = &cond;
+
+        pthread_create(&lock_threads[i], NULL, lock_thread_fn, &lock_args[i]);
+    }
+    // wait for quorum of lock grants
+    pthread_mutex_lock(&lock);
+    while (successes < q && completed < n) {
+        pthread_cond_wait(&cond, &lock);
+    }
+
+    // add to global sucessful locks list
+    for (int i = 0; i < n; ++i) {
+        if (lock_granted[i]) {
+            strncpy(granted_ips[i], server_ips[i], sizeof(granted_ips[i]) - 1);
+            granted_ips[i][sizeof(granted_ips[i]) - 1] = '\0';
+        }
+        else {
+            granted_ips[i][0] = '\0';
+        }
+    }
+
+    pthread_mutex_unlock(&lock);
+    if (successes < q) {
+        // quorum not reached
+        printf("Client failed to acquire lock quorum, only got %d grants\n", successes);
+        return -1;
+    }
+    
+    int num_granted = successes;
+
+    completed = 0;
+    successes = 0;
+
+
     for (int i = 0; i < n; ++i) {
         key_arr[i] = -1;
         val_arr[i][0] = '\0';
+
+        if(lock_granted[i] == 0){
+            // skip servers that didnt grant lock
+            continue;
+        }
 
         args[i].server_index = i;
         args[i].key_arr = key_arr;
@@ -462,7 +517,7 @@ int client_write(char *value){
     }
 
     pthread_mutex_lock(&lock);
-    while (successes < q && completed < n) {
+    while (successes < q && completed < num_granted) {
         pthread_cond_wait(&cond, &lock);
     }
 
@@ -494,6 +549,10 @@ int client_write(char *value){
     int acks = 0;
 
     for (int i = 0; i < n; ++i) {
+        if(lock_granted[i] == 0){
+            // skip servers that didnt grant lock
+            continue;
+        }
         writeback_args[i].server_index = i;
         writeback_args[i].write_key = max_key + 1; // increment the key for the write
         writeback_args[i].write_value = value;
@@ -509,7 +568,7 @@ int client_write(char *value){
 
     // wait for quorum of acks from writebacks
     pthread_mutex_lock(&lock);
-    while (acks < q && completed < n) {
+    while (acks < q && completed < num_granted) {
         pthread_cond_wait(&cond, &lock);
     }
     pthread_mutex_unlock(&lock);
@@ -517,12 +576,20 @@ int client_write(char *value){
 
     // join them, need to add quorum check and timeout later 
     for (int i = 0; i < n; ++i) {
-        pthread_join(threads[i], NULL);
-        pthread_join(writeback_threads[i], NULL);
+        if (lock_granted[i]) {
+            pthread_join(threads[i], NULL);
+            pthread_join(writeback_threads[i], NULL);
+        }
+        pthread_join(lock_threads[i], NULL);
     }
 
     pthread_mutex_destroy(&lock);
     pthread_cond_destroy(&cond);
+    // reset the granted IPS 
+    for (int i = 0; i < server_count; ++i) {
+        lock_granted[i] = 0;
+        granted_ips[i][0] = '\0';
+    }
     return 0;
 
 }
@@ -531,6 +598,14 @@ void client_cleanup(){
     if (server_ips) {
         free(server_ips);
         server_ips = NULL;
+    }
+    if (granted_ips) {
+        free(granted_ips);
+        granted_ips = NULL;
+    }
+    if (lock_granted) {
+        free(lock_granted);
+        lock_granted = NULL;
     }
     server_count = 0;
 };
