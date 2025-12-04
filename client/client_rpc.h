@@ -32,6 +32,12 @@ int rpc_send_writeback(const char *ip,
                        const char *value,
                        const char *client_id);
 
+// sends a lock acquire request to the server at specific ip
+int rpc_acquire_lock(const char *ip,
+                     const char *lock_key);
+               
+                     
+
 #ifdef __cplusplus
 }
 #endif
