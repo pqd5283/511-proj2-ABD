@@ -8,8 +8,6 @@
 
 int  server_count = 0;
 char (*server_ips)[128];
-char (*granted_ips)[128];
-int *lock_granted;
 int W = 0;
 int R = 0;
 
@@ -64,16 +62,6 @@ int client_init(){
     if (W <= 0) {
         W = server_count / 2 + 1;
     }
-    granted_ips = (char (*)[128])malloc(sizeof(char[128]) * server_count);
-    if (!granted_ips) {
-            return -1;
-        }   
-    lock_granted = malloc(server_count * sizeof(int));
-    if (!lock_granted) return -1;
-    for (int i = 0; i < server_count; ++i) {
-        lock_granted[i] = 0;
-        granted_ips[i][0] = '\0';
-    }
 
     printf("Client initialized with %d servers\n", server_count);
     printf("Client server IPs:\n");
@@ -96,6 +84,9 @@ typedef struct {
     int *successes;           // pointer to shared "success" counter
     pthread_mutex_t *lock;    // shared mutex
     pthread_cond_t  *cond; 
+    char (*granted_ips)[128];
+    int *lock_granted;
+
 } read_thread_args;
 
 typedef struct {
@@ -108,6 +99,8 @@ typedef struct {
     int *acks; // pointer to shared "acks" counter
     pthread_mutex_t *lock; // shared mutex
     pthread_cond_t  *cond; 
+    char (*granted_ips)[128];
+    int *lock_granted;
 } writeback_thread_args;
 
 typedef struct {
@@ -116,13 +109,15 @@ typedef struct {
     int *granted_counter; // pointer to shared "granted" counter
     pthread_mutex_t *lock; // shared mutex
     pthread_cond_t  *cond; 
+    int *lock_granted;
 } lock_thread_args;
 
 void *lock_thread_fn(void *arg) {
     // unpack the lock argument struct
     lock_thread_args *args = (lock_thread_args *)arg;
     int index = args->server_index;
-
+    int *lock_granted = args->lock_granted;
+ 
     // send the acquire lock rpc
     int check = rpc_acquire_lock(server_ips[index], &lock_granted[index]);
     pthread_mutex_lock(args->lock);
@@ -145,12 +140,14 @@ void *read_thread_fn(void *arg) {
     // unpack the read argument struct 
     read_thread_args *args = (read_thread_args *)arg;
     int index = args->server_index;
+    char (*granted_ips)[128] = args->granted_ips;
+
 
     // send the read rpc and store in the arrays
     int key = 0;
     char value[1024];
     printf("Client sending read to server %d at %s\n", index, server_ips[index]);
-    int check = rpc_send_read(granted_ips[index], &key, value, sizeof(value));
+    int check = rpc_send_read(args->granted_ips[index], &key, value, sizeof(value));
     //int check = rpc_send_read(server_ips[index], &key, value, sizeof(value));
     pthread_mutex_lock(args->lock);
     printf("Client received read response from server %d: key =%d, value=%s\n", index, key, value);
@@ -185,8 +182,10 @@ void *read_wb_thread_fn(void *arg) {
     int index = args->server_index;
     int writeback_key = args->write_key;
     char *write_back_value = args->write_value;
+    char (*granted_ips)[128] = args->granted_ips;
+
     // send the read writeback rpc
-    int check = rpc_send_read_writeback(granted_ips[index], writeback_key, write_back_value);
+    int check = rpc_send_read_writeback(args->granted_ips[index], writeback_key, write_back_value);
     //int check = rpc_send_read_writeback(server_ips[index], writeback_key, write_back_value);
     if(check == 0){
         // success
@@ -214,6 +213,20 @@ int client_read(){
     int n = server_count;
     int q = R;
 
+    char (*granted_ips)[128];
+    int *lock_granted;
+
+    granted_ips = (char (*)[128])malloc(sizeof(char[128]) * server_count);
+    if (!granted_ips) {
+            return -1;
+        }   
+    lock_granted = malloc(server_count * sizeof(int));
+    if (!lock_granted) return -1;
+    for (int i = 0; i < server_count; ++i) {
+        lock_granted[i] = 0;
+        granted_ips[i][0] = '\0';
+    }
+
     // define arrays to hold the returned keys and values from each server
     int  key_arr[n];
     char val_arr[n][1024];
@@ -232,6 +245,8 @@ int client_read(){
         lock_args[i].granted_counter = &successes;
         lock_args[i].lock = &lock;
         lock_args[i].cond = &cond;
+        lock_args[i].lock_granted = lock_granted;
+
 
         pthread_create(&lock_threads[i], NULL, lock_thread_fn, &lock_args[i]);
     }
@@ -255,6 +270,8 @@ int client_read(){
     pthread_mutex_unlock(&lock);
     if (successes < q) {
         // quorum not reached
+        free(granted_ips);
+        free(lock_granted);
         printf("Client failed to acquire lock quorum, only got %d grants\n", successes);
         return -1;
     }
@@ -284,6 +301,8 @@ int client_read(){
         args[i].successes = &successes;
         args[i].lock = &lock;
         args[i].cond = &cond;
+        args[i].granted_ips = granted_ips;
+        args[i].lock_granted = lock_granted;
 
         pthread_create(&threads[i], NULL, read_thread_fn, &args[i]);
         printf("Client created read thread for server %d\n", i);
@@ -317,6 +336,8 @@ int client_read(){
 
     if (responses < q) {
         // quorum not reached
+        free(granted_ips);
+        free(lock_granted);
         printf("Client failed to reach quorum, only got %d responses\n", responses);
         return -1;
     }
@@ -341,6 +362,8 @@ int client_read(){
         writeback_args[i].acks = &acks;
         writeback_args[i].lock = &lock;
         writeback_args[i].cond = &cond;
+        writeback_args[i].granted_ips = granted_ips;
+        writeback_args[i].lock_granted = lock_granted;  
 
         pthread_create(&writeback_threads[i], NULL, read_wb_thread_fn, &writeback_args[i]);
         printf("Client created writeback thread for server %d\n", i);
@@ -366,10 +389,14 @@ int client_read(){
     }
     pthread_mutex_destroy(&lock);
     pthread_cond_destroy(&cond);
-    // reset the granted IPS 
-    for (int i = 0; i < server_count; ++i) {
-        lock_granted[i] = 0;
-        granted_ips[i][0] = '\0';
+    // free the granted IPS 
+    if (granted_ips) {
+        free(granted_ips);
+        granted_ips = NULL;
+    }
+    if (lock_granted) {
+        free(lock_granted);
+        lock_granted = NULL;
     }
     return 0;
 };
@@ -381,6 +408,8 @@ void *write_thread_fn(void *arg) {
     printf("write received");
     read_thread_args *args = (read_thread_args *)arg;
     int index = args->server_index;
+    char (*granted_ips)[128] = args->granted_ips;
+
 
     // send the read rpc and store in the arrays
     int key = 0;
@@ -415,6 +444,8 @@ void *write_wb_thread_fn(void *arg) {
     int index = args->server_index;
     int writeback_key = args->write_key;
     char *write_back_value = args->write_value;
+    char (*granted_ips)[128] = args->granted_ips;
+
     // send the read writeback rpc
     //int check = rpc_send_writeback(server_ips[index], writeback_key, write_back_value, "dummy_client_id");
     int check = rpc_send_writeback(granted_ips[index], writeback_key, write_back_value, "dummy_client_id");
@@ -440,6 +471,21 @@ int client_write(char *value){
     int n = server_count;
     int q = W;
 
+    
+    char (*granted_ips)[128];
+    int *lock_granted;
+
+    granted_ips = (char (*)[128])malloc(sizeof(char[128]) * server_count);
+    if (!granted_ips) {
+            return -1;
+        }   
+    lock_granted = malloc(server_count * sizeof(int));
+    if (!lock_granted) return -1;
+    for (int i = 0; i < server_count; ++i) {
+        lock_granted[i] = 0;
+        granted_ips[i][0] = '\0';
+    }
+
     pthread_t threads[n];
     read_thread_args args[n];
     // same code as the read to get the highest timestamped key/value pair from a quorum of servers
@@ -460,6 +506,8 @@ int client_write(char *value){
         lock_args[i].granted_counter = &successes;
         lock_args[i].lock = &lock;
         lock_args[i].cond = &cond;
+        lock_args[i].lock_granted = lock_granted;
+
 
         pthread_create(&lock_threads[i], NULL, lock_thread_fn, &lock_args[i]);
     }
@@ -483,6 +531,8 @@ int client_write(char *value){
     pthread_mutex_unlock(&lock);
     if (successes < q) {
         // quorum not reached
+        free(granted_ips);
+        free(lock_granted);
         printf("Client failed to acquire lock quorum, only got %d grants\n", successes);
         return -1;
     }
@@ -511,6 +561,9 @@ int client_write(char *value){
         args[i].successes = &successes;
         args[i].lock = &lock;
         args[i].cond = &cond;
+        args[i].granted_ips = granted_ips;
+        args[i].lock_granted = lock_granted;
+
 
         pthread_create(&threads[i], NULL, write_thread_fn, &args[i]);
     }
@@ -538,6 +591,9 @@ int client_write(char *value){
     if (responses < q) {
         // quorum not reached
         printf("Client failed to reach quorum, only got %d responses\n", responses);
+        free(granted_ips);
+        free(lock_granted);
+
         return -1;
     }
     // this is where it slightly differs from the read, we need to writeback the new value with an incremented key/timestamp
@@ -560,6 +616,9 @@ int client_write(char *value){
         writeback_args[i].acks = &acks;
         writeback_args[i].lock = &lock;
         writeback_args[i].cond = &cond;
+        writeback_args[i].granted_ips = granted_ips;
+        writeback_args[i].lock_granted = lock_granted;
+
 
 
         pthread_create(&writeback_threads[i], NULL, write_wb_thread_fn, &writeback_args[i]);
@@ -584,10 +643,14 @@ int client_write(char *value){
 
     pthread_mutex_destroy(&lock);
     pthread_cond_destroy(&cond);
-    // reset the granted IPS 
-    for (int i = 0; i < server_count; ++i) {
-        lock_granted[i] = 0;
-        granted_ips[i][0] = '\0';
+    // free the granted IPS 
+    if (granted_ips) {
+        free(granted_ips);
+        granted_ips = NULL;
+    }
+    if (lock_granted) {
+        free(lock_granted);
+        lock_granted = NULL;
     }
     return 0;
 
@@ -597,14 +660,6 @@ void client_cleanup(){
     if (server_ips) {
         free(server_ips);
         server_ips = NULL;
-    }
-    if (granted_ips) {
-        free(granted_ips);
-        granted_ips = NULL;
-    }
-    if (lock_granted) {
-        free(lock_granted);
-        lock_granted = NULL;
     }
     server_count = 0;
 };
