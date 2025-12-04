@@ -32,7 +32,7 @@ int server_receive_read(int *out_key,
                         size_t out_value_size)
 {
     printf("server_receive_read called \n");
-    if(server_acquire_lock("lock"); != 0){
+    if(server_acquire_lock("lock") != 0){
         return -1;
     }
     pthread_mutex_lock(&state_mutex);

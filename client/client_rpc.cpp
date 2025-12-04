@@ -253,14 +253,20 @@ int rpc_send_writeback(const char *ip, int key, const char *value, const char *c
     return 0;
 }
 
-int rpc_acquire_lock(const char ip, const char *key)
+int rpc_acquire_lock(const char ip, int *granted)
 {
-    if(!key || !ip) {
+    if(!ip) {
         return -1;
     }
     std::string server_address = key;
     GetLockClient client(
         grpc::CreateChannel(server_address, grpc::InsecureChannelCredentials()));
+
+    if(!client.Acquire("dummy_key")) {
+        *granted = 0;
+    } else {
+        *granted = 1;
+    }
     return 0;
 }
 } 

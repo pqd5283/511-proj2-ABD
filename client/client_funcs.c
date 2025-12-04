@@ -8,12 +8,14 @@
 
 int  server_count = 0;
 char (*server_ips)[128];
+char (*granted_ips)[128];
+int *lock_granted;
 int W = 0;
 int R = 0;
 
 // opens up the config file and reads in the server ips and ports 
 int client_init(){
- char line[256];
+    char line[256];
 
     FILE *config = fopen("../shared/config.txt", "r");
     if (!config) {
@@ -62,6 +64,16 @@ int client_init(){
     if (W <= 0) {
         W = server_count / 2 + 1;
     }
+    granted_ips = (char (*)[128])malloc(sizeof(char[128]) * server_count);
+    if (!granted_ips) {
+            return -1;
+        }   
+    lock_granted = malloc(server_count * sizeof(int));
+    if (!lock_granted) return -1;
+    for (int i = 0; i < server_count; ++i) {
+        lock_granted[i] = 0;
+        granted_ips[i][0] = '\0';
+    }
 
     printf("Client initialized with %d servers\n", server_count);
     printf("Client server IPs:\n");
@@ -98,6 +110,38 @@ typedef struct {
     pthread_cond_t  *cond; 
 } writeback_thread_args;
 
+typedef struct {
+    int server_index; // which server index
+    int *completed; // pointer to shared "completed" counter
+    int *granted_counter; // pointer to shared "granted" counter
+    pthread_mutex_t *lock; // shared mutex
+    pthread_cond_t  *cond; 
+} lock_thread_args;
+
+void *lock_thread_fn(void *arg) {
+    // unpack the lock argument struct
+    lock_thread_args *args = (lock_thread_args *)arg;
+    int index = args->server_index;
+
+    // send the acquire lock rpc
+    int check = rpc_acquire_lock(server_ips[index], "dummy_key");
+    pthread_mutex_lock(args->lock);
+    if (check == 0) {
+        // success so mark as granted
+        (*(args->granted_counter))++;
+        lock_granted[index] = 1;
+    } else {
+        // failed for some reason so mark as not granted
+        lock_granted[index] = 0;
+    }
+    // update the shared counters with the lock
+    (*(args->completed))++;
+    pthread_cond_signal(args->cond);
+    pthread_mutex_unlock(args->lock);
+
+    return NULL;
+}
+
 void *read_thread_fn(void *arg) {
     // unpack the read argument struct 
     read_thread_args *args = (read_thread_args *)arg;
@@ -107,7 +151,8 @@ void *read_thread_fn(void *arg) {
     int key = 0;
     char value[1024];
     printf("Client sending read to server %d at %s\n", index, server_ips[index]);
-    int check = rpc_send_read(server_ips[index], &key, value, sizeof(value));
+    int check = rpc_send_read(granted_ips[index], &key, value, sizeof(value));
+    //int check = rpc_send_read(server_ips[index], &key, value, sizeof(value));
     pthread_mutex_lock(args->lock);
     printf("Client received read response from server %d: key =%d, value=%s\n", index, key, value);
     if (check == 0) {
@@ -142,7 +187,8 @@ void *read_wb_thread_fn(void *arg) {
     int writeback_key = args->write_key;
     char *write_back_value = args->write_value;
     // send the read writeback rpc
-    int check = rpc_send_read_writeback(server_ips[index], writeback_key, write_back_value);
+    int check = rpc_send_read_writeback(granted_ips[index], writeback_key, write_back_value);
+    //int check = rpc_send_read_writeback(server_ips[index], writeback_key, write_back_value);
     if(check == 0){
         // success
         printf("Client writeback to server %d done\n", index);
@@ -164,7 +210,7 @@ void *read_wb_thread_fn(void *arg) {
 }
 
 
-int client_read(){
+int client_blocked_read(){
 
     int n = server_count;
     int q = R;
@@ -173,19 +219,62 @@ int client_read(){
     int  key_arr[n];
     char val_arr[n][1024];
 
-    pthread_t threads[n];
-    read_thread_args args[n];
-
-    
-    int completed = 0;
-    int successes = 0;
     pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
     pthread_cond_t  cond = PTHREAD_COND_INITIALIZER;
+    int completed = 0;
+    int successes = 0;
 
+    pthread_t lock_threads[n];
+    lock_thread_args lock_args[n];
+
+    for (int i = 0; i < n; ++i) {    
+        lock_args[i].server_index = i;
+        lock_args[i].completed = &completed;
+        lock_args[i].granted_counter = &successes;
+        lock_args[i].lock = &lock;
+        lock_args[i].cond = &cond;
+
+        pthread_create(&lock_threads[i], NULL, lock_thread_fn, &lock_args[i]);
+    }
+    // wait for quorum of lock grants
+    pthread_mutex_lock(&lock);
+    while (successes < q && completed < n) {
+        pthread_cond_wait(&cond, &lock);
+    }
+
+    // add to global sucessful locks list
+    for (int i = 0; i < n; ++i) {
+        if (lock_granted[i]) {
+            strncpy(granted_ips[i], server_ips[i], sizeof(granted_ips[i]) - 1);
+            granted_ips[i][sizeof(granted_ips[i]) - 1] = '\0';
+        }
+        else {
+            granted_ips[i][0] = '\0';
+        }
+    }
+
+    pthread_mutex_unlock(&lock);
+    if (successes < q) {
+        // quorum not reached
+        printf("Client failed to acquire lock quorum, only got %d grants\n", successes);
+        return -1;
+    }
+    
+    int num_granted = successes;
+
+    pthread_t threads[n];
+    read_thread_args args[n];
+    completed = 0;
+    successes = 0;
     // fill out the args and make a thread for each server that calls the previously defined read thread function
     for (int i = 0; i < n; ++i) {
         key_arr[i] = -1;
         val_arr[i][0] = '\0';
+
+        if(lock_granted[i] == 0){
+            // skip servers that didnt grant lock
+            continue;
+        }
 
         args[i].server_index = i;
         args[i].key_arr = key_arr;
@@ -202,7 +291,7 @@ int client_read(){
     }
     // wait for quorum of responses and then continue this thread to process them
     pthread_mutex_lock(&lock);
-    while (successes < q && completed < n) {
+    while (successes < q && completed < num_granted) {
         pthread_cond_wait(&cond, &lock);
     }
 
@@ -242,6 +331,10 @@ int client_read(){
 
     // setup and create the writeback threads
     for (int i = 0; i < n; ++i) {
+        if(lock_granted[i] == 0){
+            // skip servers that didnt grant lock
+            continue;
+        }
         writeback_args[i].server_index = i;
         writeback_args[i].write_key = max_key;
         writeback_args[i].write_value = max_value;
@@ -256,7 +349,7 @@ int client_read(){
 
     // wait for quorum of acks from writebacks
     pthread_mutex_lock(&lock);
-    while (acks < q && completed < n) {
+    while (acks < q && completed < num_granted) {
         pthread_cond_wait(&cond, &lock);
     }
     pthread_mutex_unlock(&lock);
@@ -265,8 +358,11 @@ int client_read(){
     // join the writeback threads need to add an ack check later and timeout thing too maybe
     
     for (int i = 0; i < n; ++i) {
-        pthread_join(threads[i], NULL);
-        pthread_join(writeback_threads[i], NULL);
+        if(lock_granted[i]){
+            pthread_join(threads[i], NULL);
+            pthread_join(writeback_threads[i], NULL);
+        }
+        pthread_join(lock_threads[i], NULL);
         printf("Client joined threads for server %d\n", i);
     }
     pthread_mutex_destroy(&lock);
