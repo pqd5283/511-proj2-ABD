@@ -261,7 +261,7 @@ int rpc_acquire_lock(const char ip, int *granted)
     if(!ip) {
         return -1;
     }
-    std::string server_address = key;
+    std::string server_address = ip;
     GetLockClient client(
         grpc::CreateChannel(server_address, grpc::InsecureChannelCredentials()));
 

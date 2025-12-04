@@ -120,6 +120,7 @@ public:
         std::string key = request->key();
 
         int check = server_acquire_lock(key.c_str());
+        bool granted = (check == 0);
         reply->set_granted(granted);
         printf("server received lock request with key %s\n", key.c_str());
         return Status::OK;
@@ -141,7 +142,7 @@ void RunABDServer(const std::string& address) {
     builder.RegisterService(&readwb_service);
     builder.RegisterService(&write_service);
     builder.RegisterService(&writewb_service);
-    build.RegisterService(&lock_service);
+    builder.RegisterService(&lock_service);
 
     std::unique_ptr<Server> server(builder.BuildAndStart());
     server->Wait();
