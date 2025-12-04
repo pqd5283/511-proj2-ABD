@@ -124,12 +124,11 @@ void *lock_thread_fn(void *arg) {
     int index = args->server_index;
 
     // send the acquire lock rpc
-    int check = rpc_acquire_lock(server_ips[index], "dummy_key");
+    int check = rpc_acquire_lock(server_ips[index], &lock_granted[index]);
     pthread_mutex_lock(args->lock);
     if (check == 0) {
         // success so mark as granted
         (*(args->granted_counter))++;
-        lock_granted[index] = 1;
     } else {
         // failed for some reason so mark as not granted
         lock_granted[index] = 0;
