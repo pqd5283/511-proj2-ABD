@@ -25,6 +25,9 @@ using abd::write_request;
 using abd::write_reply;
 using abd::writeback_request;
 using abd::writeback_reply;
+using abd::GetLock;
+using abd::lock_request;
+using abd::lock_reply;
 
 // almost all of this code is adapted from gRPC examples AND the code from the last project
 // biggest difference is we need to save the returned values from the server calls (since they return key/value pairs)

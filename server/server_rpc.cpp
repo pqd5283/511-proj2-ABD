@@ -5,7 +5,6 @@
 #include <grpcpp/grpcpp.h>
 
 #include "../proto/abdalgorithm.grpc.pb.h"
-#include "server_rpc.h"
 #include "server.h"
 
 using grpc::Server;
