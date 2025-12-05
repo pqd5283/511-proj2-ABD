@@ -1,13 +1,14 @@
 # will contain ips for servers / server number, allows for easy change in clients/servers 
 # server count
 
-server_count = 1
+server_count = 3
 
 #quorums 
-W = 1
-R = 1
+W = 2
+R = 2
 
 # ips/ports
 server0 = 172.31.12.169:50051
-
+server1 = 172.31.15.63::50051 
+server2 = 172.31.12.169:50051
 
