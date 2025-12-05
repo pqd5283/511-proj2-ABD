@@ -18,7 +18,7 @@ int server_init(void)
     pthread_mutex_lock(&state_mutex);
     timestamp = 0;
     strcpy(value, "base");
-    printf("server initialized \n");
+   // printf("server initialized \n");
     pthread_mutex_unlock(&state_mutex);
     return 0;
 }
@@ -28,7 +28,7 @@ int server_receive_read(int *out_key,
                         char *out_value,
                         size_t out_value_size)
 {
-    printf("server_receive_read called \n");
+   // printf("server_receive_read called \n");
     pthread_mutex_lock(&state_mutex);
     if (out_key) {
         *out_key = timestamp;
@@ -38,7 +38,7 @@ int server_receive_read(int *out_key,
         out_value[out_value_size - 1] = '\0';
     }
     pthread_mutex_unlock(&state_mutex);
-    printf("server_receive_read returning key: %d, value: %s \n", timestamp, value);
+    //printf("server_receive_read returning key: %d, value: %s \n", timestamp, value);
     return 0;
 }
 
@@ -46,7 +46,7 @@ int server_receive_read(int *out_key,
 int server_read_writeback(int key,
                           const char *out_value)
 {
-    printf("server_read_writeback called with key: %d, value: %s \n", key, out_value);
+    //printf("server_read_writeback called with key: %d, value: %s \n", key, out_value);
     if (!out_value) {
         return -1;
     }
@@ -59,7 +59,7 @@ int server_read_writeback(int key,
     }
     pthread_mutex_unlock(&state_mutex);
 
-    printf("server_read_writeback updated state to key: %d, value: %s \n", timestamp, value);
+    //printf("server_read_writeback updated state to key: %d, value: %s \n", timestamp, value);
     return 0;
 }
 
@@ -68,7 +68,7 @@ int server_receive_write(int *out_key,
                          char *out_value,
                          size_t out_value_size)
 {
-    printf("server_receive_write called \n");
+    //printf("server_receive_write called \n");
     return server_receive_read(out_key, out_value, out_value_size);
 }
 
@@ -77,7 +77,7 @@ int server_write_writeback(int key,
                            const char *out_value,
                            const char *client_id){
 
-    printf("server_write_writeback called from client %s \n", client_id);
+    //printf("server_write_writeback called from client %s \n", client_id);
     return server_read_writeback(key, out_value);
 }
 
