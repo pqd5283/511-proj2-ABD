@@ -1,0 +1,4 @@
+/home/hadoop/abd_blocking/511-proj2-ABD/build/CMakeFiles/abd_client.dir
+/home/hadoop/abd_blocking/511-proj2-ABD/build/CMakeFiles/abd_server.dir
+/home/hadoop/abd_blocking/511-proj2-ABD/build/CMakeFiles/edit_cache.dir
+/home/hadoop/abd_blocking/511-proj2-ABD/build/CMakeFiles/rebuild_cache.dir

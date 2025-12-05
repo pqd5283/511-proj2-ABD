@@ -58,8 +58,8 @@ int main(void) {
         fprintf(stderr, "client_init failed\n");
         return 1;
     }
-    int num_threads = 10;  // total "clients"
-    int num_writers = num_threads / 10;  // 10% writers, 90% readers
+    int num_threads = 100;  // total "clients"
+    int num_writers = (9*num_threads) / 10;  // 10% writers, 90% readers
 
     pthread_t threads[num_threads];
     client_stats_t stats[num_threads];
